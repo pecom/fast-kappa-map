@@ -6,13 +6,15 @@ from numpy import sin,cos,exp
 import healpy as hp
 from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import lsqr, lsmr
+import sys
+import argparse
 import time
 
 class Quasars:
-    def __init__(self,Nside):
+    def __init__(self,Nside, filename):
         self.Nside=Nside
         print ("Loading quasars")
-        da=pf.open("DRQ_mocks.fits")[1]
+        da=pf.open(filename)[1]
         self.ra=da.data['RA']
         self.dec=da.data['DEC']
         self.phi=self.ra/180*np.pi
@@ -31,12 +33,12 @@ class Quasars:
         return uniqpixels
 
 class Data:
-    def __init__ (self,q,Nside):
+    def __init__ (self,q,Nside, filename):
         self.q=q
         self.Nside=Nside
 
         print ("Loading data...")
-        da=pf.open("kappalist-noiseless-cnstwe-lensed-truecorr-rtmax70-rpmax40.fits")[1]
+        da=pf.open(filename)[1]
         self.tid1=da.data['THID1']
         self.tid2=da.data['THID2']
         self.signal=da.data['SKAPPA']
@@ -54,13 +56,15 @@ class Data:
         return len(self.tid1)
     
 class Analysis:
-    # def __init__ (self, quas, dat):
-    def __init__(self):
+     def __init__ (self, quas, dat, srad):
+        print("Quasar: ", quas)
+        print("Data: ", dat)
+        print("Search radius: ", srad)
         Nside=128
-        self.sradius=0.8/180*np.pi ##search radius around map pixel
+        self.sradius=srad ##search radius around map pixel
         self.Nside=Nside
-        self.q=Quasars(self.Nside)
-        self.d=Data(self.q, self.Nside)
+        self.q=Quasars(self.Nside, quas)
+        self.d=Data(self.q, self.Nside, dat)
 
 
         self.pixid=self.q.getCover(Nside)
@@ -80,7 +84,7 @@ class Analysis:
         print("# of pairs ", self.Nd)
         self.run()
 
-    def run(self):
+     def run(self):
         A=self.getAMatrix()
         b=self.d.signal*np.sqrt(self.d.weight) ## (we suppressed by weight)
         print("running solver")
@@ -88,9 +92,9 @@ class Analysis:
         print(mp[0])
         np.save("mpfast", mp[0])
         
-    def Ang2Vec(self, theta,phi):
+     def Ang2Vec(self, theta,phi):
         return np.array([sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta)])
-    def setHpix(self):
+     def setHpix(self):
         hpx = {}
         pxd = {}
         for c,v in enumerate(self.pixid):
@@ -101,7 +105,7 @@ class Analysis:
         self.pixdict = pxd
     
         
-    def getAMatrix(self):
+     def getAMatrix(self):
 #         A = lil_matrix((self.Nd, self.Np), dtype=np.float32)
         data = []
         rows = []
@@ -117,13 +121,13 @@ class Analysis:
             
             q1 = self.Ang2Vec(qtheta1, qphi1)
             q2 = self.Ang2Vec(qtheta2, qphi2)
-            rad = np.arccos(np.dot(q1,q2))
-            if(rad <= self.resolution):
-                s = np.array([self.d.hi1[j]])
-            else:
-                neipixels1=hp.query_disc(self.Nside, q1, rad/2)
-                neipixels2=hp.query_disc(self.Nside, q2, rad/2)
-                s = np.union1d(neipixels1, neipixels2)
+            #  rad = np.arccos(np.dot(q1,q2))
+            #  if(rad <= self.resolution):
+                #  s = np.array([self.d.hi1[j]])
+            #  else:
+            neipixels1=hp.query_disc(self.Nside, q1, self.sradius)
+            neipixels2=hp.query_disc(self.Nside, q2, self.sradius)
+            s = np.union1d(neipixels1, neipixels2)
             ss = set(s)
             smols = np.array([*ss.intersection(self.setpix)])
             jthrow = [self.pixdict[l] for l in smols]
@@ -152,7 +156,7 @@ class Analysis:
 #             A[j,jthrow] = totresponse
             if(j%1000==0):
                 iteration = time.time()
-                print(j, iteration - start, j/self.Nd)
+                print("%i/%i with time: %f" % (j,self.Nd, iteration - start))
             
         print("Creating A matrix...")
 #         A = scipy.sparse.csr_matrix((data, (rows, columns)), shape=(self.Nd, self.Np))
@@ -160,36 +164,14 @@ class Analysis:
         return A
         
 # main
-Analysis()
 
-# Nside = 128
-# if rank == 0:
-#     q = Quasars(Nside)
-#     d = Data(q, Nside)
+parser = argparse.ArgumentParser(description='Calculate mp matrix quickly')
+parser.add_argument('-q', default='DRQ_mocks.fits', help='Quasar input file.')
+parser.add_argument('-d', default='kappalist-noiseless-cnstwe-lensed-truecorr-rtmax70-rpmax40.fits', help='Data input file.')
+parser.add_argument('-r', default=0.8/180*np.pi, type=float, help='Search radius.')
 
-#     pixid=q.getCover(Nside)
-#     pixtheta,pixphi=hp.pix2ang(Nside,pixid)
-#     Np=len(pixid) ## number of pixels
-#     Nd=d.len()
+args = parser.parse_args()
+Analysis(args.q, args.d, args.r)
 
-#     data = {'quasars': q, 'data': d}
-# else:
-#     data = None
 
-# data_dict = {}
 
-# data = comm.bcast(data, root=0)
-# analysis = Analysis(data['quasars'], data['data'])
-# # anze_iteration=len(data['quasars'].getCover(Nside))     # 42065 - Number of pixels in map
-# prak_iteration = data['data'].len()                     # 2.7 Million - Number of quasar pairs in data files
-# sample_range = 100000
-# iteration_arr = np.arange(0, prak_iteration, size)+rank
-# for j in iteration_arr:
-#     print(j, rank)
-#     response = analysis.getAMatrix(j)
-#     data_dict[j] = response 
-# # for j in range(100000):
-# #     if j%size==rank:
-# #         print(j, rank)
-# #         response = analysis.getAMatrix(j)
-# #         data_dict[j] = response
