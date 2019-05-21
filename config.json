@@ -2,6 +2,6 @@
   "srad": [1,2,3,4,5,6,7,8,9],
   "midpoint": [0],
   "Nside": [128],
-  "sigfactor": [2],
+  "sigfactor": [2,3,4,5,6,7,8],
   "range": 1
 }
