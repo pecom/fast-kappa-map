@@ -47,24 +47,24 @@ def kappalist(tpoints, mpoints):
         for r in relv_hp:
             if r in pixdict:
                 for k in pixdict.get(r):
-                    print("On pair (%i, %i)" % (i,k))
-                    m1 = mpoints[i]
-                    t1 = tpoints[i]
-                    m2 = mpoints[k]
-                    t2 = tpoints[k]
-                    noise = np.random.normal(0, .025)
-                    d = hp.rotator.angdist(m1, m2)[0]
-                    neighbors.append((tid[i],tid[k]))
-                    sig = d*(d - hp.rotator.angdist(t1, t2)[0] + noise)
-                    yij.append(sig)
-                    
-                    weight.append(noise**2)
+                    if k < i:
+                        print("On pair (%i, %i)" % (i,k))
+                        m1 = mpoints[i]
+                        t1 = tpoints[i]
+                        m2 = mpoints[k]
+                        t2 = tpoints[k]
+                        d = hp.rotator.angdist(m1, m2)[0]
+                        t = hp.rotator.angdist(t1, t2)[0]
+                        neighbors.append((tid[i],tid[k]))
+                        sig = (d - t)/t
+                        yij.append(sig)
+                        weight.append(1)
 
     y = np.array(yij)
     n = np.array(neighbors)
     w = np.array(weight)
     t = Table([n[:,0], n[:,1], y, w], names=('THID1', 'THID2', 'SKAPPA', 'WKAPPA'))
-    t.write(anze_output + 'kappalist-prakruth-noisy.fits', format='fits')
+    t.write(anze_output + 'kappalist-prakruth-noiseless.fits', format='fits')
 
     np.save(anze_output + "y_ij", y)
     np.save(anze_output + "neigh", n)
