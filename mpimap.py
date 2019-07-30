@@ -53,6 +53,7 @@ class Data:
         ## we will use idiotic midpoint.
         self.hi1=q.pixels[self.i1]
         self.hi2=q.pixels[self.i2]
+        self.pixarea = hp.nside2pixarea(self.Nside, False)
                                  
         
     def len(self):
@@ -138,7 +139,7 @@ class Analysis:
         drr = (d1.T*resp1).T - (d2.T*resp2).T
         dr = d1 - d2
 
-        totresponse = np.einsum('ij,ij->i', drr, dr)/np.einsum('ij,ij->i',dr,dr)
+        totresponse = 2*self.pixarea*np.einsum('ij,ij->i', drr, drr)/np.einsum('ij,ij->i',dr,dr)
         totresponse *= np.sqrt(self.d.weight[j])
         data += list(totresponse)
         rows += [j]*len(jthrow)

@@ -121,6 +121,7 @@ class Analysis:
         rows = []
         columns = []
         start = time.time()
+        pixarea = hp.nside2pixarea(self.Nside, False)
         # get relevant pair of pixels
 #         for j in range(1000):
         for j in range(self.Nd):
@@ -162,7 +163,7 @@ class Analysis:
             drr = (d1.T*resp1).T - (d2.T*resp2).T
             dr = d1 - d2
 
-            totresponse = np.einsum('ij,ij->i', drr, dr)/np.einsum('ij,ij->i',dr,dr)
+            totresponse = 2*pixarea*np.einsum('ij,ij->i', drr, drr)/np.einsum('ij,ij->i',dr,dr)
             totresponse *= np.sqrt(self.d.weight[j])
             data += list(totresponse)
             rows += [j]*len(jthrow)
